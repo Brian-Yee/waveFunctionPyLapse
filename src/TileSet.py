@@ -8,12 +8,14 @@ import matplotlib.pyplot as plt
 class TileSet:
     """Uniquely decomposition of an img into a set of permuted tiles."""
     def __init__(self, fpath: str, tile_dim=(14, 14)):
+        # img = np.array(Image.open(fpath).convert('L'))
         img = np.array(Image.open(fpath))
 
         self.tile_dim = tile_dim
-        self.img_dim= img.shape
+        self.img_dim= img.shape[:2]
 
-        observations = self.tiles_from_img(img)
+        observations = np.stack([self.tiles_from_img(img[:, :, d])
+                                  for d in range(img.shape[-1])], axis=-1)
 
         self.tile_set = self.tile_set(observations)
         self.hmap = self.hashmap(self.tile_set)
@@ -32,17 +34,23 @@ class TileSet:
         """Chunk an image into equal array portions."""
         (h, w), (nrows, ncols) = self.img_dim, self.tile_dim
 
-        return img.reshape(h//nrows, nrows, -1, ncols)\
-                  .swapaxes(1, 2)\
-                  .reshape(-1, nrows, ncols)
+        chunks = img.reshape(h//nrows, nrows, -1, ncols)\
+                    .swapaxes(1, 2)\
+                    .reshape(-1, nrows, ncols)
+        return chunks
 
     @staticmethod
-    def tile_set(observations: np.array):
+    def tile_set(observations: np.array, verbose=False):
         """Calculate tile_set with all permutations accounted for."""
         tile_set = []
         for x in map(Tile, np.unique(observations, axis=0)):
             if x not in tile_set:
                 tile_set.append(x)
+
+        if verbose:
+            plt.imshow(np.hstack([x.baseTile for x in tile_set]))
+            plt.show()
+
         return tile_set
 
     @staticmethod

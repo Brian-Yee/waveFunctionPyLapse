@@ -65,7 +65,7 @@ class Tile:
         return np.allclose(x, np.rot90(x, k=2), atol=self.tol)
 
     def symmetric(self, x: np.array) -> bool:
-        return np.allclose(x, x.T, atol=self.tol)
+        return [np.allclose(x[:, :, d], x[:, :, d].T, atol=self.tol) for d in range(x.shape[-1])]
 
     def mirror(self, x: np.array) -> bool:
         return np.allclose(x, np.fliplr(x), atol=self.tol)
