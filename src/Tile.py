@@ -5,8 +5,6 @@ np.set_printoptions(edgeitems=10)
 
 class Tile:
     baseTile = np.array([])
-    rotation = 0
-    LR_flip = False
     sym = None
     tol = 1e-5
 
@@ -15,13 +13,10 @@ class Tile:
         self.sym = self.sym_group(A)
 
     def __repr__(self):
-        print(self.baseTile)
-
         msg = (
-            'Rotation = {}\n'
-            'LR_flip = {}\n'
-            'Symmetry = {}'
-        ).format(self.rotation, self.LR_flip, self.sym)
+            self.baseTile.__repr__() + '\n'
+            'Symmetry: {}'
+        ).format(self.sym)
 
         return msg
 
@@ -45,17 +40,29 @@ class Tile:
 
     def sym_group(self, tile: np.array) -> str:
         """Checks for the symmetry group of a tile"""
-        LR = self.mirror(tile)
-        if any(self.symmetric(np.rot90(tile, k=k)) for k in range(2)):
-            return 'X' if LR else '/'
-        else:
-            TB = self.mirror(np.rot90(tile))
-            if (LR and TB):
+        rot = [self.rotation(tile), self.rotation(np.rot90(tile))]
+        sym = [self.symmetric(tile), self.symmetric(np.rot90(tile))]
+        LR = [self.mirror(tile), self.mirror(np.rot90(tile))]
+
+        if all(sym) and all(rot):
+            if all(LR):
+                return 'X'
+            if not any(LR):
+                return '\\'
+
+        if not any(sym):
+            if all(LR):
                 return 'I'
-            elif (not LR and TB) or (LR and not TB):
+            if any(LR) and not any(rot):
                 return 'T'
 
-        return 'L'
+        if any(sym) and not all(LR) and not all(rot):
+            return 'L'
+
+        return None
+
+    def rotation(self, x: np.array) -> bool:
+        return np.allclose(x, np.rot90(x, k=2), atol=self.tol)
 
     def symmetric(self, x: np.array) -> bool:
         return np.allclose(x, x.T, atol=self.tol)
@@ -63,13 +70,8 @@ class Tile:
     def mirror(self, x: np.array) -> bool:
         return np.allclose(x, np.fliplr(x), atol=self.tol)
 
-    def all_transforms(self) -> typing.Iterable[np.array]:
-        """can prob del"""
-        return (np.rot90(x, k=k) for k in range(4)
-                for x in [self.baseTile, np.fliplr(self.baseTile)])
-
-    def hashmap(self) -> dict:
+    def combinations(self) -> list:
         A = self.baseTile
-        return {tuple(np.rot90(a, k=k).flatten()): (e, k)
+        return [[tuple(np.rot90(a, k=k).flatten()), (e, k)]
                 for k in range(4, -1, -1)
-                for e, a in enumerate([np.fliplr(A), A])}
+                for e, a in enumerate([np.fliplr(A), A])]
