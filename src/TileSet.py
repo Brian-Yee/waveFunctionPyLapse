@@ -12,11 +12,9 @@ class TileSet:
         img = np.array(Image.open(fpath))
 
         self.tile_dim = tile_dim
-        self.img_dim= img.shape[:2]
+        self.img_dim= img.shape
 
-        observations = np.stack([self.tiles_from_img(img[:, :, d])
-                                  for d in range(img.shape[-1])], axis=-1)
-
+        observations = self.tiles_from_img(img)
         self.tile_set = self.tile_set(observations)
         self.hmap = self.hashmap(self.tile_set)
         rev_hmap = {v: k for k, v in self.hmap.items()}
@@ -32,11 +30,10 @@ class TileSet:
 
     def tiles_from_img(self, img:np.array) -> np.array:
         """Chunk an image into equal array portions."""
-        (h, w), (nrows, ncols) = self.img_dim, self.tile_dim
-
-        chunks = img.reshape(h//nrows, nrows, -1, ncols)\
+        (h, w, d), (nrows, ncols) = self.img_dim, self.tile_dim
+        chunks = img.reshape(h//nrows, nrows, -1, ncols, d)\
                     .swapaxes(1, 2)\
-                    .reshape(-1, nrows, ncols)
+                    .reshape(-1, nrows, ncols, d)
         return chunks
 
     @staticmethod
