@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-import numpy as np
-from PIL import Image
-from Tile import Tile
-from SymmetryTool import SymmetryTool
 import matplotlib.pyplot as plt
-import sys
-from subprocess import Popen
+import numpy as np
 import os
+from PIL import Image
+from SymmetryTool import SymmetryTool
+from subprocess import Popen
+from Tile import Tile
 
 
 class TileSet:
@@ -18,12 +17,12 @@ class TileSet:
         tiles = self.tiles_from_img(img, tile_dim)
 
         self.tile_dict = self.tile_dict(tiles, verbose=False)
-        self.hmap = self.encode_basetiles(tiles)
-        self.himg = self.encode_image(tiles, self.hmap)
+        self.hmap = self.define_protocol(tiles)
+        self.himg = self.apply_protocol(tiles, self.hmap)
         self.dir_fpath = dir_fpath
 
     @staticmethod
-    def read_in_img_as_array(fpath):
+    def read_in_img_as_array(fpath: str) -> np.array:
         return np.array(Image.open(fpath))
 
     def tiles_from_img(self, img: np.array, tile_dim: list) -> np.array:
@@ -36,44 +35,53 @@ class TileSet:
         return chunks
 
     def tile_dict(self, tiles: np.array, verbose=False):
-        """Calculate tile_set with all permutations accounted for."""
-        ravel_tiles = [Tile(x) for x in self.ravel_chunks(tiles)]
-        hashed_tiles = np.array([hash(x) for x in ravel_tiles])
-        hashes, args = np.unique(hashed_tiles, return_index=True)
-        tile_dict = {hash(ravel_tiles[x]):
-                     Tile(ravel_tiles[x].tile, self.ST) for x in args}
+        """Define set of basetiles keyed by their hashes."""
+        ravel_tiles = list(map(Tile, self.ravel_chunks(tiles)))
+        hashes = np.array([hash(x) for x in ravel_tiles])
+        _, args = np.unique(hashes, return_index=True)
+        tiles = [ravel_tiles[x] for x in args]
+
+        tile_dict = {hash(x): Tile(x.tile, self.ST) for x in tiles}
 
         if verbose:
-            plt.imshow(np.hstack([x.tile for x in tile_dict.values()][:10]))
+            plt.imshow(np.hstack([x.tile for x in tile_dict.values()]))
             plt.show()
 
         return tile_dict
 
-    def encode_basetiles(self, tiles: np.array) -> dict:
+    def define_protocol(self, tiles: np.array) -> dict:
+        """Add all protocols to one dictionary.
+
+        Keys: flathashes
+        Valuse: [hash(basetile), turns]
+
+        flathash := rotate(hash(basetile), turns)
+        """
         hmap = {}
         for _, tile in self.tile_dict.items():
             hmap = {**hmap, **tile.protocol_dict()}
         return hmap
 
-    def encode_image(self, tiles: np.array, hmap: dict) -> np.array:
-        ravel_tiles = [Tile(x) for x in self.ravel_chunks(tiles)]
+    def apply_protocol(self, tiles: np.array, hmap: dict) -> np.array:
+        ravel_tiles = map(Tile, self.ravel_chunks(tiles))
         himg = np.array([hmap[x.flathash()] for x in ravel_tiles])\
                  .reshape([*tiles.shape[:2], 2])
 
         return himg
 
     @staticmethod
-    def ravel_chunks(x):
+    def ravel_chunks(x: np.array) -> np.array:
         return x.reshape(-1, *x.shape[2:])
 
-    def save(self):
+    def save(self) -> None:
+        """Save basetile images with hashes as filename."""
         if not os.path.isdir(self.dir_fpath):
             Popen(['mkdir', self.dir_fpath]).wait()
 
         for e, (tile_hash, tile) in enumerate(self.tile_dict.items()):
             plt.imsave('{}/{:d}.png'.format(self.dir_fpath, int(tile_hash)), tile.tile)
 
-    def load_tile(self, protocol):
+    def load_tile(self, protocol: np.array) -> np.array:
         """Load tile based on hash and rotation."""
         tile_hash, k = protocol
         return self.tile_dict[tile_hash].rotate(k).tile

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-from TileSet import TileSet
-from Distribution import Distribution
-from IOTools import print_xml
 import numpy as np
 import matplotlib.pyplot as plt
+from Distribution import Distribution
+from IOTools import print_xml
+from TileSet import TileSet
 
 
 if __name__ == '__main__':
@@ -13,7 +13,7 @@ if __name__ == '__main__':
     dist = Distribution(ts)
 
     freq = dist.frequencies()
-    neighbours = dist.allowed_neighbours(verbose=True)
+    neighbours = dist.allowed_neighbours(verbose=False)
 
     print_xml(symmetries, neighbours, freq)
     ts.save()

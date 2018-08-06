@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
-from TileSet import TileSet
 import matplotlib.pyplot as plt
+from TileSet import TileSet
 
 
 class Distribution:
