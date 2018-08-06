@@ -1,66 +1,81 @@
 #!/usr/bin/env python3
 import numpy as np
 from PIL import Image
-from Tile import Tile
+from Tile import Tile, SymmetryIdentifier
 import matplotlib.pyplot as plt
+import sys
+from subprocess import Popen
+import os
 
 
 class TileSet:
     """Uniquely decomposition of an img into a set of permuted tiles."""
-    def __init__(self, fpath: str, tile_dim=(14, 14)):
-        # img = np.array(Image.open(fpath).convert('L'))
+    SI = SymmetryIdentifier()
+
+    def __init__(self, fpath: str, tile_dim=(14, 14), dir_fpath='imgs'):
         img = np.array(Image.open(fpath))
+        tiles = self.tiles_from_img(img, tile_dim)
 
-        self.tile_dim = tile_dim
-        self.img_dim= img.shape
+        self.tile_set = self.tile_set(tiles, verbose=False)
+        self.hmap = self.encode_basetiles(tiles)
+        self.himg = self.encode_image(tiles, self.hmap)
+        self.dir_fpath = dir_fpath
 
-        observations = self.tiles_from_img(img)
-        self.tile_set = self.tile_set(observations)
-        self.hmap = self.hashmap(self.tile_set)
-        rev_hmap = {v: k for k, v in self.hmap.items()}
-        self.himg= self.hash_observations_as_img(observations, rev_hmap)
+        self.save_tiles()
 
-    def __repr__(self):
-        msg = (
-            str(self.spatial_tile_set.__repr__()) + '\n'
-            'tile set size: {}\n'
-            'hmap size    : {}'
-        ).format(len(self.tile_set), len(self.hmap))
-        return msg
-
-    def tiles_from_img(self, img:np.array) -> np.array:
+    def tiles_from_img(self, img: np.array, tile_dim: list) -> np.array:
         """Chunk an image into equal array portions."""
-        (h, w, d), (nrows, ncols) = self.img_dim, self.tile_dim
+        nrows, ncols = tile_dim
+        h, w, d = img.shape
         chunks = img.reshape(h//nrows, nrows, -1, ncols, d)\
                     .swapaxes(1, 2)\
-                    .reshape(-1, nrows, ncols, d)
+                    .reshape(h//nrows, w//ncols, nrows, ncols, d)
         return chunks
 
-    @staticmethod
-    def tile_set(observations: np.array, verbose=False):
+    def tile_set(self, tiles: np.array, verbose=False):
         """Calculate tile_set with all permutations accounted for."""
-        tile_set = []
-        for x in map(Tile, np.unique(observations, axis=0)):
-            if x not in tile_set:
-                tile_set.append(x)
+        ravel_tiles = [Tile(x, self.SI) for x in self.ravel_chunks(tiles)]
+        hashed_tiles = np.array([hash(x) for x in ravel_tiles])
+        hashes, args = np.unique(hashed_tiles, return_index=True)
+        tile_set = set(ravel_tiles[x] for x in args)
 
         if verbose:
-            plt.imshow(np.hstack([x.baseTile for x in tile_set]))
+            plt.imshow(np.hstack([x.tile for x in tile_set]))
             plt.show()
 
         return tile_set
 
-    @staticmethod
-    def hashmap(tile_set):
-        """Return the permutations of tile_set to recreate image."""
+    def encode_basetiles(self, tiles: np.array) -> dict:
         hmap = {}
-        for e, tile in enumerate(tile_set):
-            hmap_0 = {tuple([e, *v]): k for k, v in tile.combinations()}
-            hmap = {**hmap, **hmap_0}
+        for tile in self.tile_set:
+            hmap = {**hmap, **tile.combinations()}
         return hmap
 
-    def hash_observations_as_img(self, observations, hmap):
-        # map each tile image to it's orientation in term of true north tiles
-        tile_lengths = (self.img_dim[e]//self.tile_dim[e] for e in range(2))
-        flat_hash = [hmap[tuple(x.flatten())] for x in observations]
-        return np.array(flat_hash).reshape(*tile_lengths, 3)
+    def encode_image(self, tiles: np.array, hmap: dict) -> np.array:
+        ravel_tiles = [Tile(x) for x in self.ravel_chunks(tiles)]
+        himg = np.array([hmap[x.flathash()] for x in ravel_tiles])\
+                 .reshape([*tiles.shape[:2], 2])
+
+        return himg
+
+    @staticmethod
+    def ravel_chunks(x):
+        return x.reshape(-1, *x.shape[2:])
+
+    def save_tiles(self):
+        if not os.path.isdir(self.dir_fpath):
+            Popen(['mkdir', self.dir_fpath]).wait()
+
+        for e, tile in enumerate(self.tile_set):
+            plt.imsave('{}/{:d}.png'.format(self.dir_fpath, int(hash(tile))), tile.tile)
+
+    def load_tile(self, groundtruth):
+        basetile, rotate = groundtruth
+        for x in self.tile_set:
+            if basetile == hash(x):
+                tile = x
+
+        return np.rot90(tile.tile, k=rotate)
+
+
+

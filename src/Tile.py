@@ -1,77 +1,93 @@
 #!/usr/bin/env python3
 import numpy as np
 import typing
-np.set_printoptions(edgeitems=10)
+import sys
+from itertools import product
+import ctypes
+import matplotlib.pyplot as plt
 
-class Tile:
-    baseTile = np.array([])
-    sym = None
+class SymmetryIdentifier:
     tol = 1e-5
 
-    def __init__(self, A: np.array):
-        self.baseTile = A
-        self.sym = self.sym_group(A)
+    def identify(self, tile: np.array) -> str:
+        return self.hmap[self.truthtable(tile)]
 
-    def __repr__(self):
-        msg = (
-            self.baseTile.__repr__() + '\n'
-            'Symmetry: {}'
-        ).format(self.sym)
+    def __init__(self):
+        self.hmap = self.truthtable_hashmap()
 
-        return msg
+    def truthtable_hashmap(self) -> dict:
+        examples = {
+            'X': np.array([[1, 0, 1], [0, 1, 0], [1, 0, 1]]),
+            'I': np.array([[1, 1, 1], [0, 1, 0], [1, 1, 1]]),
+            'T': np.array([[1, 1, 1], [0, 1, 0], [0, 1, 0]]),
+            'L': np.array([[0, 1, 0], [0, 1, 1], [0, 0, 0]]),
+            '\\': np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])}
 
-    def __eq__(self, other) -> bool:
-        """Check if a permutation of a tile is equivalent to another.
+        hmap = {self.truthtable(np.rot90(img, k=k)): sym
+                for k, (sym, img) in product(range(4), examples.items())}
 
-        First the possibility of equality from metadata is checked. Than
-        equality is written as a series of booleans and generators so the
-        minimum amount of computation is used to calculate equivalency.
-        """
-        if (type(other) is not type(self)) or (self.sym != other.sym):
-            return False
+        return hmap
 
-        A, B = self.baseTile, other.baseTile
-        return any(self.equal_under_rotation(A, X) for X in [B, np.fliplr(B)])
+    def truthtable(self, x: np.array) -> tuple:
+        """Combine all matrix propertes of image."""
+        truthtable = [self.rotation(x), self.symmetric(x),
+                      *[self.mirror(np.rot90(x, k=k)) for k in range(2)]]
 
-    def equal_under_rotation(self, A: np.array, B: np.array) -> bool:
-        """Checks if any of the 4 rotations lead to array equality"""
-        rotations = (np.rot90(B, k=k) for k in range(5))
-        return any(np.allclose(A, X, atol=self.tol) for X in rotations)
+        return tuple(truthtable)
 
-    def sym_group(self, tile: np.array) -> str:
-        """Checks for the symmetry group of a tile"""
-        rot = [self.rotation(tile), self.rotation(np.rot90(tile))]
-        sym = [self.symmetric(tile), self.symmetric(np.rot90(tile))]
-        LR = [self.mirror(tile), self.mirror(np.rot90(tile))]
-
-        if all(sym) and all(rot):
-            if all(LR):
-                return 'X'
-            if not any(LR):
-                return '\\'
-
-        if not any(sym):
-            if all(LR):
-                return 'I'
-            if any(LR) and not any(rot):
-                return 'T'
-
-        if any(sym) and not all(LR) and not all(rot):
-            return 'L'
-
-        return None
+    def mirror(self, x: np.array) -> bool:
+        """Check for mirror symmetric matrix propetry."""
+        return np.allclose(x, np.fliplr(x), atol=self.tol)
 
     def rotation(self, x: np.array) -> bool:
+        """Check for rotational invariance of matrix for 180\deg."""
         return np.allclose(x, np.rot90(x, k=2), atol=self.tol)
 
     def symmetric(self, x: np.array) -> bool:
-        return [np.allclose(x[:, :, d], x[:, :, d].T, atol=self.tol) for d in range(x.shape[-1])]
+        """Check for a symmetric matrix property across all planes."""
+        if x.ndim == 2:
+            x = np.expand_dims(x, axis=-1)
+        return all(map(self.symmetric_2d, np.rollaxis(x, axis=-1)))
 
-    def mirror(self, x: np.array) -> bool:
-        return np.allclose(x, np.fliplr(x), atol=self.tol)
+    def symmetric_2d(self, x: np.array) -> bool:
+        """Check for a symmetric matrix property across one plane."""
+        return np.allclose(x, x.T, atol=self.tol)
 
-    def combinations(self) -> list:
-        A = self.baseTile
-        return [[tuple(np.rot90(a, k=k).flatten()), (e, k)]
-                for k in range(4, -1, -1)
-                for e, a in enumerate([np.fliplr(A), A])]
+
+class Tile:
+    tol = 1e-5
+
+    def __init__(self, tile: np.array, SI: SymmetryIdentifier=None):
+        self.tile = tile
+
+        if SI is not None:
+            self.sym = SI.identify(tile)
+        else:
+            self.sym = None
+
+    def __repr__(self):
+        return 'Hash: {}, Symmetry: {}'.format(self.__hash__(), self.sym)
+
+    def __hash__(self):
+        """Quick and dirty hash to return only positive values."""
+        sorted_pixel_channels = tuple(np.sort(self.tile.reshape(-1)))
+        return hash(sorted_pixel_channels)
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+    def __ne__(self, other):
+        return not(self == other)
+
+    def combinations(self) -> dict:
+        """Create all possile combinations of a tile."""
+        return {self.transform(k).flathash(): (hash(self), k) for k in range(4)}
+
+    def transform(self, rotation):
+        # TODO retain symmetry
+        array = np.rot90(self.tile, k=rotation)
+        return Tile(array)
+
+    def flathash(self) -> int:
+        """Quick and dirty hash to return only positive values."""
+        return hash(tuple(self.tile.flatten()))

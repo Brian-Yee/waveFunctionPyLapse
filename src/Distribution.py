@@ -5,47 +5,42 @@ import matplotlib.pyplot as plt
 
 
 class Distribution:
-    def __init__(self, tile_set: TileSet):
-        self.ts = tile_set.tile_set
-        self.himg = tile_set.himg
-        self.hmap = tile_set.hmap
+    def __init__(self, tileset: TileSet):
+        self.tileset = tileset
 
-    def frequencies(self):
-        """Calculate frequency of tile tuples."""
-        freq = np.bincount(self.himg.reshape(-1, 3)[:, 0].flatten())
-        return freq/freq.sum()
+    def frequencies(self, normalized=True):
+        """Calculate frequency basetiles."""
+        himg = self.tileset.himg
+        base_tiles, _ = np.split(himg, himg.shape[-1], axis=-1)
+        freq = np.dstack(np.unique(base_tiles.flatten(), return_counts=True))\
+                .squeeze()
+
+        return freq
 
     def allowed_neighbours(self, verbose=False):
         """Calculate left right neighbours."""
         # TODO add top bottom pairs later as well
-        l, r = self.himg[:-1, :, :], self.himg[1:, :, :]
+        himg = self.tileset.himg
+        lr = np.dstack([himg[:, :-1, :], himg[:, 1:, :]])\
+               .reshape(-1, 2, 2)
 
-        lr_pairs = np.vstack([x.reshape(-1, 3) for x in [l, r]])\
-                     .reshape(-1, 2, 3)
-
-        unique_pairs = np.unique(lr_pairs.reshape(-1, 6), axis=0)\
-                         .reshape(-1, 2, 3)
-
+        _, args = np.unique(lr[:, :, 0].reshape(-1, 2), axis=0,
+                            return_index=True)
+        neighbours = np.array([lr[x] for x in args])\
+                       .reshape(-1, 2, 2)
         if verbose:
-            hash_to_tile = lambda x: np.array(self.hmap[tuple(x)]).reshape(14, 14)
-            pairs = [np.hstack(list(map(hash_to_tile, p))) for p in unique_pairs]
+            W = int(np.floor(np.sqrt(neighbours.shape[0])))
+            pair_imgs = [self.create_pair_img(p) for p in neighbours[:W**2]]
+            img = np.hstack([np.vstack(pair_imgs[W*x:W*(x+1)]) for x in range(W)])
 
-            width = int(np.ceil(np.sqrt(len(pairs))))
+            # insert vertical lines
+            for x in range(0, img.shape[1], 2*14):
+                img[:, x:x+1] = 1
 
-            # apd the future visual image
-            for x in range(len(pairs), width**2):
-                pairs.append(np.zeros_like(pairs[0]))
-
-            visual = np.array(pairs).reshape(width, width*14, 28)
-            visual = np.vstack(np.hstack(visual))
-
-            for x in range(0, visual.shape[1], 28):
-                visual[:, x] = 0
-
-            plt.imshow(np.vstack(visual))
+            plt.imshow(img)
             plt.show()
 
-        return unique_pairs
+        return neighbours
 
-    def __repr__(self):
-        return 'NONE'
+    def create_pair_img(self, p):
+        return np.hstack([self.tileset.load_tile(x) for x in p])
