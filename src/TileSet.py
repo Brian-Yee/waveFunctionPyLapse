@@ -16,9 +16,11 @@ class TileSet:
         img = self.read_in_img_as_array(fpath)
         tiles = self.tiles_from_img(img, tile_dim)
 
-        self.tile_dict = self.tile_dict(tiles, verbose=False)
+        self.tile_dict = self.define_basetiles(tiles)
         self.hmap = self.define_protocol(tiles)
+
         self.himg = self.apply_protocol(tiles, self.hmap)
+
         self.dir_fpath = dir_fpath
 
     @staticmethod
@@ -34,20 +36,20 @@ class TileSet:
                     .reshape(h//nrows, w//ncols, nrows, ncols, d)
         return chunks
 
-    def tile_dict(self, tiles: np.array, verbose=False):
+    def define_basetiles(self, tiles: np.array, verbose=False) -> dict:
         """Define set of basetiles keyed by their hashes."""
         ravel_tiles = list(map(Tile, self.ravel_chunks(tiles)))
-        hashes = np.array([hash(x) for x in ravel_tiles])
-        _, args = np.unique(hashes, return_index=True)
-        tiles = [ravel_tiles[x] for x in args]
+        hashes = np.array(list(map(hash, ravel_tiles)))
 
-        tile_dict = {hash(x): Tile(x.tile, self.ST) for x in tiles}
+        _, unique_arg = np.unique(hashes, return_index=True)
+        unique_tiles = (Tile(ravel_tiles[i].tile, self.ST) for i in unique_arg)
+        basetiles= {hash(x): x for x in unique_tiles}
 
         if verbose:
-            plt.imshow(np.hstack([x.tile for x in tile_dict.values()]))
+            plt.imshow(np.hstack([x.tile for x in basetiles.values()]))
             plt.show()
 
-        return tile_dict
+        return basetiles
 
     def define_protocol(self, tiles: np.array) -> dict:
         """Add all protocols to one dictionary.
@@ -85,6 +87,3 @@ class TileSet:
         """Load tile based on hash and rotation."""
         tile_hash, k = protocol
         return self.tile_dict[tile_hash].rotate(k).tile
-
-
-

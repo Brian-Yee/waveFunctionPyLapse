@@ -13,7 +13,7 @@ if __name__ == '__main__':
     dist = Distribution(ts)
 
     freq = dist.frequencies()
-    neighbours = dist.allowed_neighbours(verbose=False)
+    neighbours = dist.allowed_neighbours(verbose=True)
 
     print_xml(symmetries, neighbours, freq)
     ts.save()
