@@ -19,9 +19,10 @@ class Distribution:
 
     def allowed_neighbours(self, verbose=False):
         """Calculate all observed possible neighbour pairings."""
-        pairs = np.vstack([self.vertical_pairs(self.tileset.himg),
-                           self.horizontal_pairs(self.tileset.himg)])
+        # pairs = np.vstack([self.vertical_pairs(self.tileset.himg),
+        #                    self.horizontal_pairs(self.tileset.himg)])
 
+        pairs = np.vstack([self.vertical_pairs(self.tileset.himg)])
         neighbours = self.unique_basetile_pairs(pairs)
 
         if verbose:
@@ -38,9 +39,20 @@ class Distribution:
 
     @staticmethod
     def vertical_pairs(x: np.array) -> np.array:
-        """Create array of horizontal adjacent pairs in matrix."""
-        # change protocol to rotate image such that top bottom pairs
-        # become left right pairs indexed on top bottom spots
+        """Create array of vertical adjacent pairs in matrix.
+
+        For efficient calculate one needs to modify the protocols such
+        that top bottom pairs become left right pairs indexed on top
+        bottom spots. This can be quite confusing so to explain it
+        put your hands out in front of you joining your index finger
+        and thumb with all knuckles pointing RIGHT. Keeping your wrists
+        stationary, rotate your left hand 90 degrees COUNTER-CLOCKWISE
+        and then rotate your right hand 90 degress COUNTER-CLOCKWISE.
+        All your knuckles should now be pointing UPWARDS. Recall originally
+        your index and thumb were originally joined. In this new
+        reference space while your wrists (array locations) are top/bottom
+        the image of your hands are now now left/right.
+        """
         x[:, :, 1] = (x[:, :, 1] + 1) % 4
 
         top, bottom = x[:-1, :, :], x[1:, :, :]
