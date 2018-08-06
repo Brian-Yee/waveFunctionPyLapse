@@ -10,37 +10,82 @@ class Distribution:
 
     def frequencies(self, normalized=True):
         """Calculate frequency basetiles."""
-        himg = self.tileset.himg
-        base_tiles, _ = np.split(himg, himg.shape[-1], axis=-1)
-        freq = np.dstack(np.unique(base_tiles.flatten(), return_counts=True))\
+        protocols = self.tileset.himg.shape[-1]
+        basetiles, _ = np.split(self.tileset.himg, protocols, axis=-1)
+        freq = np.dstack(np.unique(basetiles.flatten(), return_counts=True))\
                 .squeeze()
 
         return freq
 
     def allowed_neighbours(self, verbose=False):
-        """Calculate left right neighbours."""
-        # TODO add top bottom pairs later as well
-        himg = self.tileset.himg
-        lr = np.dstack([himg[:, :-1, :], himg[:, 1:, :]])\
-               .reshape(-1, 2, 2)
+        """Calculate all observed possible neighbour pairings."""
+        pairs = np.vstack([self.vertical_pairs(self.tileset.himg),
+                           self.horizontal_pairs(self.tileset.himg)])
 
-        _, args = np.unique(lr[:, :, 0].reshape(-1, 2), axis=0,
-                            return_index=True)
-        neighbours = np.array([lr[x] for x in args])\
-                       .reshape(-1, 2, 2)
+        neighbours = self.unique_basetile_pairs(pairs)
+
         if verbose:
-            W = int(np.floor(np.sqrt(neighbours.shape[0])))
-            pair_imgs = [self.create_pair_img(p) for p in neighbours[:W**2]]
-            img = np.hstack([np.vstack(pair_imgs[W*x:W*(x+1)]) for x in range(W)])
+            self.visualize_neighbours(neighbours)
 
-            # insert vertical lines
-            for x in range(0, img.shape[1], 2*14):
-                img[:, x:x+1] = 1
-
-            plt.imshow(img)
-            plt.show()
-
+        raise SystemExit
         return neighbours
+
+    @staticmethod
+    def horizontal_pairs(x: np.array) -> np.array:
+        """Create array of horizontal adjacent pairs in matrix."""
+        left, right = x[:, :-1, :], x[:, 1:, :]
+        return np.dstack([left, right]).reshape(-1, 2, 2)
+
+    @staticmethod
+    def vertical_pairs(x: np.array) -> np.array:
+        """Create array of horizontal adjacent pairs in matrix."""
+        # change protocol to rotate image such that top bottom pairs
+        # become left right pairs indexed on top bottom spots
+        x[:, :, 1] = (x[:, :, 1] + 1) % 4
+
+        top, bottom = x[:-1, :, :], x[1:, :, :]
+        return np.dstack([top, bottom]).reshape(-1, 2, 2)
+
+    @staticmethod
+    def unique_basetile_pairs(pairs: np.array) -> np.array:
+        """Return unique basetile pairs assuming followed protocol."""
+        basetile_info_arg = 0
+        basetile_pairs = pairs[:, :, basetile_info_arg].reshape(-1, 2)
+        _, args = np.unique(basetile_pairs, axis=0, return_index=True)
+
+        return np.array([pairs[x] for x in args])
+
+    def visualize_neighbours(self, neighbours):
+        """Create image for visual verification of calculated neighbours."""
+        w = self.largest_squarewidth_possible(neighbours)
+        img = self.construct_img(neighbours, w)
+        img = self.add_visual_grid(img)
+
+        plt.imshow(img)
+        plt.show()
+
+    @staticmethod
+    def largest_squarewidth_possible(neighbours):
+        return int(np.floor(np.sqrt(neighbours.shape[0])))
+
+    def construct_img(self, neighbours, w):
+        """Constructs minimal square image of neighbouring pairs."""
+        pair_imgs = np.array([self.create_pair_img(p) for p in neighbours[:w**2]])
+        vertical_strips = [np.vstack(x) for x in np.split(pair_imgs, w)]
+        return np.hstack(vertical_strips)
 
     def create_pair_img(self, p):
         return np.hstack([self.tileset.load_tile(x) for x in p])
+
+    @staticmethod
+    def add_visual_grid(img):
+        # draw visual row seperators
+        for x in range(0, img.shape[0], 14):
+            img[x:x+1, :] = 1
+
+        # draw visual column seperators
+        for x in range(0, img.shape[1], 2*14):
+            img[:, x:x+1] = 1
+
+        return img
+
