@@ -19,16 +19,16 @@ class Distribution:
 
     def allowed_neighbours(self, verbose=False):
         """Calculate all observed possible neighbour pairings."""
-        # pairs = np.vstack([self.vertical_pairs(self.tileset.himg),
-        #                    self.horizontal_pairs(self.tileset.himg)])
+        # TODO: two very odd allowances are allowed when combining
+        #       vertical and horizontal pairs but not when done
+        #       seperately. Figure out why eventually
 
-        pairs = np.vstack([self.vertical_pairs(self.tileset.himg)])
+        pairs = np.vstack([self.horizontal_pairs(self.tileset.himg)])
         neighbours = self.unique_basetile_pairs(pairs)
 
         if verbose:
             self.visualize_neighbours(neighbours)
 
-        raise SystemExit
         return neighbours
 
     @staticmethod
@@ -46,12 +46,16 @@ class Distribution:
         bottom spots. This can be quite confusing so to explain it
         put your hands out in front of you joining your index finger
         and thumb with all knuckles pointing RIGHT. Keeping your wrists
-        stationary, rotate your left hand 90 degrees COUNTER-CLOCKWISE
+        stationary, rotate your left hand 90 degrees COUNTER-CLOCKWISE^1
         and then rotate your right hand 90 degress COUNTER-CLOCKWISE.
         All your knuckles should now be pointing UPWARDS. Recall originally
         your index and thumb were originally joined. In this new
         reference space while your wrists (array locations) are top/bottom
         the image of your hands are now now left/right.
+
+        [1] For additional persuastion print
+            x vs np.rot90(x)
+            to see that it is a counter-clockwise rotation.
         """
         x[:, :, 1] = (x[:, :, 1] + 1) % 4
 
@@ -63,41 +67,34 @@ class Distribution:
         """Return unique basetile pairs assuming followed protocol."""
         basetile_info_arg = 0
         basetile_pairs = pairs[:, :, basetile_info_arg].reshape(-1, 2)
-        _, args = np.unique(basetile_pairs, axis=0, return_index=True)
+        _, args = np.unique(np.sort(basetile_pairs), axis=0, return_index=True)
 
         return np.array([pairs[x] for x in args])
 
-    def visualize_neighbours(self, neighbours):
-        """Create image for visual verification of calculated neighbours."""
-        w = self.largest_squarewidth_possible(neighbours)
-        img = self.construct_img(neighbours, w)
-        img = self.add_visual_grid(img)
+    def visualize_neighbours(self, neighbours, pad=3):
+        """Create image for visual verification of calculated neighbours.
+
+        To visualize all tiles reasonably on a screen we rearrange tiles
+        side by side with some padding between in the shape of a
+        rectangle of dimensions [w, 2*w]
+        """
+        sorted_neighbours = sorted(neighbours, key=lambda x: x[0][0])
+        img_pairs = np.array([self.create_pair_img(x)
+                              for x in sorted_neighbours])
+
+        # add leftover padding and visual seperator whitespace
+        N, dx, dy, dz = img_pairs.shape
+        w = int(np.ceil(np.sqrt(N)))
+        ndim_pad = ((0, w**2 - N), (0, pad), (0, pad), (0, 0))
+
+        # rearrange image to rectangle with padding
+        img = np.pad(img_pairs, ndim_pad, 'constant')\
+                .reshape(w, w, dx+pad, dy+pad, dz)\
+                .swapaxes(1, 2)\
+                .reshape(w*(dx+pad), w*(dy+pad), -1)
 
         plt.imshow(img)
         plt.show()
 
-    @staticmethod
-    def largest_squarewidth_possible(neighbours):
-        return int(np.floor(np.sqrt(neighbours.shape[0])))
-
-    def construct_img(self, neighbours, w):
-        """Constructs minimal square image of neighbouring pairs."""
-        pair_imgs = np.array([self.create_pair_img(p) for p in neighbours[:w**2]])
-        vertical_strips = [np.vstack(x) for x in np.split(pair_imgs, w)]
-        return np.hstack(vertical_strips)
-
     def create_pair_img(self, p):
         return np.hstack([self.tileset.load_tile(x) for x in p])
-
-    @staticmethod
-    def add_visual_grid(img):
-        # draw visual row seperators
-        for x in range(14, img.shape[0], 14):
-            img[x:x+1, :] = 1
-
-        # draw visual column seperators
-        for x in range(2*14, img.shape[1], 2*14):
-            img[:, x:x+1] = 1
-
-        return img
-
