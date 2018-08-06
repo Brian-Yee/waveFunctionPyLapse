@@ -80,11 +80,11 @@ class Distribution:
     @staticmethod
     def add_visual_grid(img):
         # draw visual row seperators
-        for x in range(0, img.shape[0], 14):
+        for x in range(14, img.shape[0], 14):
             img[x:x+1, :] = 1
 
         # draw visual column seperators
-        for x in range(0, img.shape[1], 2*14):
+        for x in range(2*14, img.shape[1], 2*14):
             img[:, x:x+1] = 1
 
         return img
