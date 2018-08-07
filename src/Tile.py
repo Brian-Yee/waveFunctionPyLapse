@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 from SymmetryTool import SymmetryTool
+# import imagehash
 
 
 class Tile:
@@ -15,8 +16,12 @@ class Tile:
 
     def __hash__(self):
         """Quick and dirty translationally flat invariant hash."""
-        sorted_pixel_channels = tuple(np.sort(self.tile.reshape(-1)))
-        return hash(sorted_pixel_channels)
+        s_profile = np.sort(self.tile.reshape(-1))
+        v_profile = self.tile.sum(axis=(-1, 1))
+        h_profile = self.tile.sum(axis=(-1, 0))
+        # fingerprint = tuple(np.hstack([s_profile, v_profile, h_profile]))
+        fingerprint = tuple(np.hstack([s_profile]))
+        return hash(fingerprint)
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -26,13 +31,30 @@ class Tile:
 
     def protocol_dict(self) -> dict:
         """Relate an observed tile record with a protocol for reconstruction."""
-        return {self.rotate(k).flathash(): (hash(self), k) for k in range(4)}
+        # TODO: implement flipping as part of the legend
+        # protocol = {self.flip(f).rotate(k).flathash(): (hash(self), k, f)
+        #             for k in range(4)
+        #             for f in range(2)}
+        protocol = {self.rotate(k).flathash(): (hash(self), k)
+                    for k in range(4)}
+        return protocol
 
     def rotate(self, rotation):
         """Return a new instance of an object with a rotated tile."""
         tile = Tile(np.rot90(self.tile, k=rotation))
         tile.sym = self.sym
         return tile
+
+    def flip(self, flip):
+        """Return a new instance of an object with a rotated tile."""
+        if flip % 2 == 1:
+            tile = Tile(np.fliplr(self.tile))
+            tile.sym = self.sym
+        else:
+            tile = self
+
+        return tile
+
 
     def flathash(self) -> int:
         """Return tile to be hashed as is."""

@@ -1,5 +1,34 @@
 #!/usr/bin/env python3
 import numpy as np
+import matplotlib.pyplot as plt
+from imagehash import average_hash
+from PIL import Image
+
+def save_as_padded_rectangle(fpath, imgs, pad=3):
+    # add leftover padding and visual seperator whitespace
+    N, dx, dy, dz = imgs.shape
+    w = int(np.ceil(np.sqrt(N)))
+    ndim_pad = ((0, w**2 - N), (0, pad), (0, pad), (0, 0))
+
+    # rearrange image to rectangle with padding
+    img = np.pad(imgs, ndim_pad, 'constant')\
+            .reshape(w, w, dx+pad, dy+pad, dz)\
+            .swapaxes(0, 1)\
+            .swapaxes(1, 2)\
+            .reshape(w*(dx+pad), w*(dy+pad), -1)
+
+    plt.imsave(fpath, img)
+    plt.show()
+
+
+def perceptual_sorter(x, slice_func=None):
+    arr = x.squeeze(axis=0)
+    if slice_func is not None:
+        arr = slice_func(arr)
+
+    img = Image.fromarray(arr)
+    return int('0x' + str(average_hash(img)), 0)
+
 
 def print_xml(symmetries: np.array,
               neighbours: np.array,

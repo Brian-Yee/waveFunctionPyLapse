@@ -7,6 +7,8 @@ from TileSet import TileSet
 
 
 if __name__ == '__main__':
+    # ts = TileSet('unittest/1.png', tile_dim=(16, 16))
+
     ts = TileSet('samples/tiled_images/Circuit.png', tile_dim=(14, 14))
     symmetries = [x.sym for x in ts.tile_dict.values()]
 

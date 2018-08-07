@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import numpy as np
 import matplotlib.pyplot as plt
+from collections import Counter
+from IOTools import save_as_padded_rectangle, perceptual_sorter
 from TileSet import TileSet
 
 
@@ -79,22 +81,18 @@ class Distribution:
         rectangle of dimensions [w, 2*w]
         """
         sorted_neighbours = sorted(neighbours, key=lambda x: x[0][0])
-        img_pairs = np.array([self.create_pair_img(x)
+        imgs = np.array([self.create_pair_img(x)
                               for x in sorted_neighbours])
 
-        # add leftover padding and visual seperator whitespace
-        N, dx, dy, dz = img_pairs.shape
-        w = int(np.ceil(np.sqrt(N)))
-        ndim_pad = ((0, w**2 - N), (0, pad), (0, pad), (0, 0))
+        N, dy, dx, dz = imgs.shape
+        img_pairs = np.vstack(sorted(np.vsplit(imgs, N),
+                                     key=self._perceptual_sorter))
+        save_as_padded_rectangle('pngs/legal-neighbours.png', img_pairs)
 
-        # rearrange image to rectangle with padding
-        img = np.pad(img_pairs, ndim_pad, 'constant')\
-                .reshape(w, w, dx+pad, dy+pad, dz)\
-                .swapaxes(1, 2)\
-                .reshape(w*(dx+pad), w*(dy+pad), -1)
-
-        plt.imshow(img)
-        plt.show()
+    @staticmethod
+    def _perceptual_sorter(x):
+        slice_func = lambda x: x[:, :x.shape[1]//2, :]
+        return perceptual_sorter(x, slice_func=slice_func)
 
     def create_pair_img(self, p):
         return np.hstack([self.tileset.load_tile(x) for x in p])

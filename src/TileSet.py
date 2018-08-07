@@ -2,11 +2,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+from IOTools import save_as_padded_rectangle, perceptual_sorter
 from PIL import Image
 from SymmetryTool import SymmetryTool
 from subprocess import Popen
 from Tile import Tile
 
+from imagehash import average_hash
 
 class TileSet:
     """Uniquely decomposition of an img into a set of permuted tiles."""
@@ -36,7 +38,7 @@ class TileSet:
                     .reshape(h//nrows, w//ncols, nrows, ncols, d)
         return chunks
 
-    def define_basetiles(self, tiles: np.array, verbose=False) -> dict:
+    def define_basetiles(self, tiles: np.array, verbose=True) -> dict:
         """Define set of basetiles keyed by their hashes."""
         ravel_tiles = list(map(Tile, self.ravel_chunks(tiles)))
         hashes = np.array(list(map(hash, ravel_tiles)))
@@ -46,8 +48,10 @@ class TileSet:
         basetiles= {hash(x): x for x in unique_tiles}
 
         if verbose:
-            plt.imshow(np.hstack([x.tile for x in basetiles.values()]))
-            plt.show()
+            imgs = np.array([x.tile for x in basetiles.values()])
+            N, dx, dy, dz = imgs.shape
+            imgs = np.vstack(sorted(np.vsplit(imgs, N), key=perceptual_sorter))
+            save_as_padded_rectangle('pngs/basetiles.png', imgs)
 
         return basetiles
 
@@ -62,6 +66,7 @@ class TileSet:
         hmap = {}
         for _, tile in self.tile_dict.items():
             hmap = {**hmap, **tile.protocol_dict()}
+
         return hmap
 
     def apply_protocol(self, tiles: np.array, hmap: dict) -> np.array:
