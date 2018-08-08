@@ -16,11 +16,8 @@ class Tile:
 
     def __hash__(self):
         """Quick and dirty translationally flat invariant hash."""
-        s_profile = np.sort(self.tile.reshape(-1))
-        v_profile = self.tile.sum(axis=(-1, 1))
-        h_profile = self.tile.sum(axis=(-1, 0))
-        # fingerprint = tuple(np.hstack([s_profile, v_profile, h_profile]))
-        fingerprint = tuple(np.hstack([s_profile]))
+        # fingerprint = tuple(np.sort(self.tile.reshape(-1)))
+        fingerprint = tuple(self.tile.reshape(-1))
         return hash(fingerprint)
 
     def __eq__(self, other):
